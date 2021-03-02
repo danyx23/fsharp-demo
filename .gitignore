@@ -1,0 +1,9 @@
+node_modules
+deploy
+bin
+obj
+.fake
+.ionide
+.vscode
+*.json
+*.gz
