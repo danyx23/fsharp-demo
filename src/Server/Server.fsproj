@@ -5,6 +5,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="berlin-weather.csv" CopyToOutputDirectory="Always" />
     <None Include="paket.references" />
     <Compile Include="Server.fs" />
   </ItemGroup>

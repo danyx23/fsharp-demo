@@ -5,39 +5,31 @@ open Fable.Remoting.Client
 open Shared
 
 type Model =
-    { Todos: Todo list
-      Input: string }
+    { WeatherData: WeatherDataRow array }
 
 type Msg =
-    | GotTodos of Todo list
-    | SetInput of string
-    | AddTodo
-    | AddedTodo of Todo
+    | GotWeatherData of WeatherDataRow array
+    | RequestHighestTemperatures
 
-let todosApi =
+let weatherApi =
     Remoting.createApi()
     |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.buildProxy<ITodosApi>
+    |> Remoting.buildProxy<IWeatherApi>
 
 let init(): Model * Cmd<Msg> =
     let model =
-        { Todos = []
-          Input = "" }
-    let cmd = Cmd.OfAsync.perform todosApi.getTodos () GotTodos
-    model, cmd
+        { WeatherData = [||] }
+
+    model, Cmd.none
 
 let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
     match msg with
-    | GotTodos todos ->
-        { model with Todos = todos }, Cmd.none
-    | SetInput value ->
-        { model with Input = value }, Cmd.none
-    | AddTodo ->
-        let todo = Todo.create model.Input
-        let cmd = Cmd.OfAsync.perform todosApi.addTodo todo AddedTodo
-        { model with Input = "" }, cmd
-    | AddedTodo todo ->
-        { model with Todos = model.Todos @ [ todo ] }, Cmd.none
+    | GotWeatherData weatherRows ->
+        Fable.Core.JS.console.log("got weather data")
+        { model with WeatherData = weatherRows }, Cmd.none
+    | RequestHighestTemperatures ->
+        let cmd = Cmd.OfAsync.perform weatherApi.getHighest20TemperatureDays () GotWeatherData
+        model, cmd
 
 open Fable.React
 open Fable.React.Props
@@ -58,29 +50,45 @@ let navBrand =
 
 let containerBox (model : Model) (dispatch : Msg -> unit) =
     Box.box' [ ] [
+
         Content.content [ ] [
-            Content.Ol.ol [ ] [
-                for todo in model.Todos do
-                    li [ ] [ str todo.Description ]
+            h2 [ ] [ str "Hottest days in Berlin"]
+            Table.table [ ] [
+                thead [ ] [
+                    tr [] [
+                        th [ Style [ TextAlign TextAlignOptions.Right ] ] [ str "Date"]
+                        th [ Style [ TextAlign TextAlignOptions.Right ] ] [ str "Temperature"]
+                    ]]
+
+                tbody [ ] [
+
+                    for weatherDataRow in model.WeatherData do
+                        let temperatureDisplayString =
+                            match weatherDataRow.MaximumTemp with
+                            | None -> "-"
+                            | Some f -> sprintf "%.1f °C" f
+                        yield
+                            tr [ ] [
+                                td [ Style [ TextAlign TextAlignOptions.Right ] ] [str (sprintf "%s" (weatherDataRow.Date.ToShortDateString())) ]
+                                td [ Style [ TextAlign TextAlignOptions.Right ] ] [str temperatureDisplayString ]
+                                ]
+                ]
+
             ]
-        ]
-        Field.div [ Field.IsGrouped ] [
-            Control.p [ Control.IsExpanded ] [
-                Input.text [
-                  Input.Value model.Input
-                  Input.Placeholder "What needs to be done?"
-                  Input.OnChange (fun x -> SetInput x.Value |> dispatch) ]
-            ]
+            Field.div [ Field.IsGrouped ] [
+
+
             Control.p [ ] [
                 Button.a [
                     Button.Color IsPrimary
-                    Button.Disabled (Todo.isValid model.Input |> not)
-                    Button.OnClick (fun _ -> dispatch AddTodo)
+                    Button.OnClick (fun _ -> dispatch RequestHighestTemperatures)
                 ] [
-                    str "Add"
+                    str "Get highest temperatures"
                 ]
             ]
         ]
+        ]
+
     ]
 
 let view (model : Model) (dispatch : Msg -> unit) =
@@ -106,7 +114,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
                     Column.Width (Screen.All, Column.Is6)
                     Column.Offset (Screen.All, Column.Is3)
                 ] [
-                    Heading.p [ Heading.Modifiers [ Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ] ] [ str "bfpm" ]
+                    Heading.p [ Heading.Modifiers [ Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ] ] [ str "BFP Meetup Demo" ]
                     containerBox model dispatch
                 ]
             ]

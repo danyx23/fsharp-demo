@@ -3,40 +3,45 @@ module Server
 open Fable.Remoting.Server
 open Fable.Remoting.Giraffe
 open Saturn
+open FSharp.Data
 
 open Shared
 
-type Storage () =
-    let todos = ResizeArray<_>()
+type WeatherHistory = CsvProvider<"berlin-weather.csv", CacheRows = false, HasHeaders=false, Schema = "Date (date), AverageTemperature (float option), MinimumTemperature (float option), MaximumTemperature (float option), Precipitation (float option), SnowDepth (float option), WindDirection (float option), AverageWindSpeed (float option), WindGustSpeed (float option), AverageSeaLevelAirPressure (float option), SunshineDuration (float option)">
+let weatherHistory = WeatherHistory.Load("berlin-weather.csv")
 
-    member __.GetTodos () =
-        List.ofSeq todos
+let weatherDateRowsArray =
+    weatherHistory.Rows
+    |> Seq.map (fun row ->
+        { Date = row.Date
+          AverageTemp = row.AverageTemperature
+          MinimumTemp = row.MinimumTemperature
+          MaximumTemp = row.MaximumTemperature
+          Precipitation = row.Precipitation
+          SnowDepth = row.SnowDepth
+          WindDirection = row.WindDirection
+          AverageWindSpeed = row.AverageWindSpeed
+          WindGustSpeed = row.WindGustSpeed
+          AverageSeaLevelAirPressure = row.AverageSeaLevelAirPressure
+          SunshineDuration = row.SunshineDuration
+        })
+    |> Seq.toArray
 
-    member __.AddTodo (todo: Todo) =
-        if Todo.isValid todo.Description then
-            todos.Add todo
-            Ok ()
-        else Error "Invalid todo"
+let getHighest20TemperatureDays () : Async<WeatherDataRow array> =
+    async {
+        return
+            weatherDateRowsArray
+            |> Array.sortByDescending (fun row -> row.MaximumTemp)
+            |> Array.take 20
+    }
 
-let storage = Storage()
-
-storage.AddTodo(Todo.create "Create new SAFE project") |> ignore
-storage.AddTodo(Todo.create "Write your app") |> ignore
-storage.AddTodo(Todo.create "Ship it !!!") |> ignore
-
-let todosApi =
-    { getTodos = fun () -> async { return storage.GetTodos() }
-      addTodo =
-        fun todo -> async {
-            match storage.AddTodo todo with
-            | Ok () -> return todo
-            | Error e -> return failwith e
-        } }
+let weatherApi =
+    { getHighest20TemperatureDays = getHighest20TemperatureDays }
 
 let webApp =
     Remoting.createApi()
     |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.fromValue todosApi
+    |> Remoting.fromValue weatherApi
     |> Remoting.buildHttpHandler
 
 let app =
